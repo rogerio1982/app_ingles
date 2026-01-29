@@ -1,0 +1,8 @@
+flask
+flask-cors
+aws-wsgi
+python-dotenv
+openai==0.28.1
+pydantic
+gunicorn
+

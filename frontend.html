@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inglês pai D'égua</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 450px;
+            height: 650px;
+            background: #ffffff;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h1 {
+            flex: 1;
+            font-size: 18px;
+        }
+
+        .reset-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .reset-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .api-status {
+            padding: 8px;
+            text-align: center;
+            font-size: 11px;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .api-status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .api-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f9f9f9;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.4;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot {
+            background: #e5e5ea;
+            color: #333;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-controls {
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #ddd;
+            background: white;
+        }
+
+        .voice-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .voice-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .voice-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .voice-btn.recording {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
+            }
+            50% {
+                box-shadow: 0 4px 25px rgba(245, 87, 108, 0.8);
+            }
+        }
+
+        .status {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #666;
+            min-height: 20px;
+        }
+
+        .config-panel {
+            padding: 10px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+        }
+
+        .config-panel input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .config-label {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">
+        <h1>🎧 Inglês pai D'égua</h1>
+        <button class="reset-btn" onclick="resetConversation()">🔄 Reset</button>
+    </div>
+
+    <div class="api-status" id="apiStatus">Conectando à API...</div>
+
+    <div class="chat-messages" id="chat"></div>
+
+    <div class="chat-controls">
+        <button id="voiceBtn" class="voice-btn" onclick="toggleRecording()">🎙️</button>
+        <div class="status" id="status">Tap to speak</div>
+    </div>
+
+    <div class="config-panel">
+        <label class="config-label">API URL:</label>
+        <input type="text" id="apiUrl" value="/api" placeholder="/api">
+    </div>
+</div>
+
+<script>
+// ============ CONFIGURAÇÃO - ALTERE AQUI ============
+const CONFIG = {
+    API_URL: "/api"  // 👈 Mude aqui para o endereço da sua API
+};
+
+// ============ VARIÁVEIS GLOBAIS ============
+let SESSION_ID = "user_" + Math.random().toString(36).substr(2, 9);
+let recognition = null;
+let isRecording = false;
+let finalTranscript = "";
+let isSpeaking = false;
+
+// ============ INICIALIZAÇÃO ============
+window.addEventListener('DOMContentLoaded', () => {
+    const savedUrl = localStorage.getItem('apiUrl');
+    if (savedUrl) {
+        document.getElementById('apiUrl').value = savedUrl;
+        CONFIG.API_URL = savedUrl;
+    } else {
+        document.getElementById('apiUrl').value = CONFIG.API_URL;
+    }
+    
+    // Salva URL quando mudar
+    document.getElementById('apiUrl').addEventListener('change', (e) => {
+        CONFIG.API_URL = e.target.value;
+        localStorage.setItem('apiUrl', CONFIG.API_URL);
+        checkApiHealth();
+    });
+    
+    checkApiHealth();
+});
+
+// ============ API HEALTH CHECK ============
+async function checkApiHealth() {
+    try {
+        const response = await fetch(`${CONFIG.API_URL}/health`);
+        const data = await response.json();
+        
+        const statusEl = document.getElementById('apiStatus');
+        if (data.status === 'ok') {
+            statusEl.textContent = '✓ API Conectada';
+            statusEl.className = 'api-status connected';
+        } else {
+            throw new Error('API status not ok');
+        }
+    } catch (error) {
+        const statusEl = document.getElementById('apiStatus');
+        statusEl.textContent = '✗ API Desconectada - Verifique se o servidor está rodando';
+        statusEl.className = 'api-status error';
+        console.error('API Health Check failed:', error);
+    }
+}
+
+// ============ RECONHECIMENTO DE VOZ ============
+function initRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Speech recognition not supported in this browser. Please use Chrome or Edge.");
+        return false;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = function(event) {
+        finalTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript + " ";
+            }
+        }
+        if (finalTranscript.trim()) {
+            document.getElementById("status").innerText = "Capturing: " + finalTranscript.substring(0, 30) + "...";
+        }
+    };
+
+    recognition.onend = function() {
+        if (isRecording) {
+            isRecording = false;
+            updateUI();
+            
+            const text = finalTranscript.trim();
+            if (text) {
+                addMessage(text, "user");
+                sendMessage(text);
+                finalTranscript = "";
+            }
+        }
+    };
+
+    recognition.onerror = function(e) {
+        console.error("Speech error:", e.error);
+        isRecording = false;
+        updateUI();
+        
+        if (e.error === 'not-allowed') {
+            alert("Microphone permission denied. Please allow microphone access.");
+        } else if (e.error === 'no-speech') {
+            document.getElementById("status").innerText = "No speech detected. Try again.";
+        }
+    };
+
+    return true;
+}
+
+function toggleRecording() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Speech recognition not supported in this browser. Please use Chrome or Edge.");
+        return;
+    }
+
+    if (isSpeaking) {
+        document.getElementById("status").innerText = "Wait for the bot to finish speaking...";
+        return;
+    }
+
+    if (!recognition) {
+        if (!initRecognition()) return;
+    }
+
+    if (!isRecording) {
+        startRecording();
+    } else {
+        stopRecording();
+    }
+}
+
+function startRecording() {
+    try {
+        finalTranscript = "";
+        isRecording = true;
+        updateUI();
+        recognition.start();
+        console.log("Recording started");
+    } catch (error) {
+        console.error("Error starting recording:", error);
+        isRecording = false;
+        updateUI();
+    }
+}
+
+function stopRecording() {
+    try {
+        if (recognition && isRecording) {
+            recognition.stop();
+            console.log("Recording stopped");
+        }
+    } catch (error) {
+        console.error("Error stopping recording:", error);
+        isRecording = false;
+        updateUI();
+    }
+}
+
+// ============ API CALLS ============
+async function sendMessage(text) {
+    try {
+        const response = await fetch(`${CONFIG.API_URL}/chat`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                message: text,
+                session_id: SESSION_ID
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        addMessage(data.reply, "bot");
+        speakText(data.reply);
+        
+        // Atualiza status
+        document.getElementById('apiStatus').textContent = `✓ API Conectada (${data.history_length} mensagens)`;
+        document.getElementById('apiStatus').className = 'api-status connected';
+        
+    } catch (error) {
+        console.error("Error sending message:", error);
+        addMessage("Erro ao conectar com a API. Verifique se o servidor está rodando.", "bot");
+        document.getElementById('apiStatus').textContent = '✗ Erro na API';
+        document.getElementById('apiStatus').className = 'api-status error';
+    }
+}
+
+async function resetConversation() {
+    try {
+        const response = await fetch(`${CONFIG.API_URL}/reset`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({session_id: SESSION_ID})
+        });
+
+        if (response.ok) {
+            document.getElementById("chat").innerHTML = "";
+            addMessage("Conversation reset! Let's start fresh. What would you like to talk about?", "bot");
+        }
+    } catch (error) {
+        console.error("Error resetting conversation:", error);
+    }
+}
+
+// ============ TEXT-TO-SPEECH ============
+function speakText(text) {
+    if (!text) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+
+    isSpeaking = true;
+    updateUI();
+
+    utterance.onstart = () => {
+        console.log("Started speaking");
+        isSpeaking = true;
+        document.getElementById("status").innerText = "Bot is speaking...";
+    };
+
+    utterance.onend = () => {
+        console.log("Finished speaking");
+        isSpeaking = false;
+        updateUI();
+    };
+
+    utterance.onerror = (e) => {
+        console.error("Speech synthesis error:", e);
+        isSpeaking = false;
+        updateUI();
+    };
+
+    window.speechSynthesis.speak(utterance);
+}
+
+// ============ UI UPDATES ============
+function updateUI() {
+    const btn = document.getElementById("voiceBtn");
+    const status = document.getElementById("status");
+
+    if (isSpeaking) {
+        btn.classList.remove("recording");
+        btn.innerText = "🔊";
+        btn.disabled = true;
+        status.innerText = "Bot is speaking...";
+    } else if (isRecording) {
+        btn.classList.add("recording");
+        btn.innerText = "⏹️";
+        btn.disabled = false;
+        status.innerText = "Listening... Speak now!";
+    } else {
+        btn.classList.remove("recording");
+        btn.innerText = "🎙️";
+        btn.disabled = false;
+        status.innerText = "Tap to speak";
+    }
+}
+
+function addMessage(text, sender) {
+    const chat = document.getElementById("chat");
+    const msg = document.createElement("div");
+    msg.classList.add("message", sender);
+    msg.innerText = text;
+    chat.appendChild(msg);
+    chat.scrollTop = chat.scrollHeight;
+}
+</script>
+
+</body>
+</html>
