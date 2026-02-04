@@ -18,13 +18,16 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            min-height: 100dvh;
             padding: 20px;
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
         }
 
         .chat-container {
             width: 100%;
             max-width: 450px;
             height: 650px;
+            max-height: 100dvh;
             background: #ffffff;
             border-radius: 20px;
             display: flex;
@@ -142,6 +145,7 @@
             color: white;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            touch-action: none;
         }
 
         .voice-btn:hover {
@@ -195,6 +199,53 @@
             margin-bottom: 4px;
             display: block;
         }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+                padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            }
+
+            .chat-container {
+                max-width: 100%;
+                width: 100%;
+                height: 100dvh;
+                border-radius: 0;
+            }
+
+            .chat-header {
+                padding: 16px;
+                font-size: 16px;
+            }
+
+            .chat-header h1 {
+                font-size: 16px;
+            }
+
+            .chat-messages {
+                padding: 16px;
+            }
+
+            .chat-controls {
+                padding: 16px;
+            }
+
+            .voice-btn {
+                width: 64px;
+                height: 64px;
+                font-size: 24px;
+            }
+        }
+
+        @media (max-height: 700px) {
+            .chat-container {
+                height: 100dvh;
+            }
+
+            .chat-messages {
+                padding: 14px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -210,7 +261,7 @@
     <div class="chat-messages" id="chat"></div>
 
     <div class="chat-controls">
-        <button id="voiceBtn" class="voice-btn" onclick="toggleRecording()">🎙️</button>
+        <button id="voiceBtn" class="voice-btn" aria-pressed="false">🎙️</button>
         <div class="status" id="status">Tap to speak</div>
     </div>
 
@@ -229,24 +280,33 @@ let recognition = null;
 let isRecording = false;
 let finalTranscript = "";
 let isSpeaking = false;
+let isToggling = false;
+let ignoreClickUntil = 0;
+let lastSendAt = 0;
+let activePointerId = null;
+let isPointerDown = false;
 
 // ============ INICIALIZAÇÃO ============
 window.addEventListener('DOMContentLoaded', () => {
-    const savedUrl = localStorage.getItem('apiUrl');
-    if (savedUrl) {
-        document.getElementById('apiUrl').value = savedUrl;
-        CONFIG.API_URL = savedUrl;
-    } else {
-        document.getElementById('apiUrl').value = CONFIG.API_URL;
+    const apiUrlInput = document.getElementById('apiUrl');
+    if (apiUrlInput) {
+        const savedUrl = localStorage.getItem('apiUrl');
+        if (savedUrl) {
+            apiUrlInput.value = savedUrl;
+            CONFIG.API_URL = savedUrl;
+        } else {
+            apiUrlInput.value = CONFIG.API_URL;
+        }
+
+        // Salva URL quando mudar
+        apiUrlInput.addEventListener('change', (e) => {
+            CONFIG.API_URL = e.target.value;
+            localStorage.setItem('apiUrl', CONFIG.API_URL);
+            checkApiHealth();
+        });
     }
-    
-    // Salva URL quando mudar
-    document.getElementById('apiUrl').addEventListener('change', (e) => {
-        CONFIG.API_URL = e.target.value;
-        localStorage.setItem('apiUrl', CONFIG.API_URL);
-        checkApiHealth();
-    });
-    
+
+    setupVoiceButton();
     checkApiHealth();
 });
 
@@ -281,8 +341,9 @@ function initRecognition() {
 
     recognition = new SpeechRecognition();
     recognition.lang = "en-US";
-    recognition.continuous = true;
+    recognition.continuous = false;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
         finalTranscript = "";
@@ -297,16 +358,17 @@ function initRecognition() {
     };
 
     recognition.onend = function() {
-        if (isRecording) {
-            isRecording = false;
-            updateUI();
-            
-            const text = finalTranscript.trim();
-            if (text) {
-                addMessage(text, "user");
-                sendMessage(text);
-                finalTranscript = "";
-            }
+        if (!isRecording) return;
+        isRecording = false;
+        updateUI();
+
+        const text = finalTranscript.trim();
+        const now = Date.now();
+        if (text && now - lastSendAt > 800) {
+            lastSendAt = now;
+            addMessage(text, "user");
+            sendMessage(text);
+            finalTranscript = "";
         }
     };
 
@@ -341,11 +403,16 @@ function toggleRecording() {
         if (!initRecognition()) return;
     }
 
+    if (isToggling) return;
+    isToggling = true;
     if (!isRecording) {
         startRecording();
     } else {
         stopRecording();
     }
+    setTimeout(() => {
+        isToggling = false;
+    }, 250);
 }
 
 function startRecording() {
@@ -373,6 +440,51 @@ function stopRecording() {
         isRecording = false;
         updateUI();
     }
+}
+
+function setupVoiceButton() {
+    const btn = document.getElementById("voiceBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+        if (Date.now() < ignoreClickUntil) return;
+        toggleRecording();
+    });
+
+    btn.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "touch" || e.pointerType === "pen") {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+            if (isSpeaking) {
+                document.getElementById("status").innerText = "Wait for the bot to finish speaking...";
+                return;
+            }
+            if (!recognition) {
+                if (!initRecognition()) return;
+            }
+            ignoreClickUntil = Date.now() + 500;
+            activePointerId = e.pointerId;
+            isPointerDown = true;
+            btn.setPointerCapture(e.pointerId);
+            if (!isRecording) {
+                startRecording();
+            }
+        }
+    });
+
+    const endPointer = (e) => {
+        if (!isPointerDown) return;
+        if (activePointerId !== null && e.pointerId !== activePointerId) return;
+        isPointerDown = false;
+        activePointerId = null;
+        if (isRecording) {
+            stopRecording();
+        }
+    };
+
+    btn.addEventListener("pointerup", endPointer);
+    btn.addEventListener("pointercancel", endPointer);
+    btn.addEventListener("pointerleave", endPointer);
 }
 
 // ============ API CALLS ============
@@ -468,16 +580,19 @@ function updateUI() {
         btn.classList.remove("recording");
         btn.innerText = "🔊";
         btn.disabled = true;
+        btn.setAttribute("aria-pressed", "false");
         status.innerText = "Bot is speaking...";
     } else if (isRecording) {
         btn.classList.add("recording");
         btn.innerText = "⏹️";
         btn.disabled = false;
+        btn.setAttribute("aria-pressed", "true");
         status.innerText = "Listening... Speak now!";
     } else {
         btn.classList.remove("recording");
         btn.innerText = "🎙️";
         btn.disabled = false;
+        btn.setAttribute("aria-pressed", "false");
         status.innerText = "Tap to speak";
     }
 }
